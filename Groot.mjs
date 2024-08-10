@@ -190,6 +190,64 @@ class Groot {
       }
     }
   }
+
+  async status() {
+    const index = JSON.parse(
+      await fs.readFile(this.indexPath, { encoding: "utf-8" })
+    );
+    const headCommitHash = await this.getCurrentHead();
+    let trackedFiles = [];
+    if (headCommitHash) {
+      const headCommitData = JSON.parse(
+        await this.getCommitData(headCommitHash)
+      );
+      trackedFiles = headCommitData.files;
+    }
+
+    const workingDirFiles = await fs.readdir(".", { withFileTypes: true });
+    const workingFiles = workingDirFiles
+      .filter((file) => file.isFile() && file.name !== ".groot")
+      .map((file) => file.name);
+
+    const stagedFiles = index.map((file) => file.path);
+    const modifiedFiles = [];
+    const untrackedFiles = [];
+    const modifiedStagedFiles = [];
+
+    for (const file of workingFiles) {
+      const fileData = await fs.readFile(file, { encoding: "utf-8" });
+      const fileHash = this.hashObject(fileData);
+
+      const stagedFile = index.find((f) => f.path === file);
+      const trackedFile = trackedFiles.find((f) => f.path === file);
+
+      if (stagedFile && stagedFile.hash !== fileHash) {
+        // File is modified after being staged
+        modifiedStagedFiles.push(file);
+      } else if (!stagedFile && trackedFile && trackedFile.hash !== fileHash) {
+        // File is modified but not staged
+        modifiedFiles.push(file);
+      } else if (!stagedFile && !trackedFile) {
+        // File is untracked
+        untrackedFiles.push(file);
+      }
+    }
+
+    console.log(chalk.bold("Changes to be committed:"));
+    stagedFiles.forEach((file) => {
+      console.log(chalk.green(`  ${file}`));
+    });
+
+    console.log(chalk.bold("\nChanges staged but modified:"));
+    modifiedStagedFiles.forEach((file) => {
+      console.log(chalk.magenta(`  ${file}`));
+    });
+
+    console.log(chalk.bold("\nUntracked files:"));
+    untrackedFiles.forEach((file) => {
+      console.log(chalk.yellow(`  ${file}`));
+    });
+  }
 }
 
 program.command("init").action(async () => {
@@ -214,6 +272,11 @@ program.command("log").action(async () => {
 program.command("diff <commitHash>").action(async (commitHash) => {
   const groot = new Groot();
   await groot.showCommitDiff(commitHash);
+});
+
+program.command("status").action(async () => {
+  const groot = new Groot();
+  await groot.status();
 });
 
 program.parse(process.argv);
