@@ -50,7 +50,63 @@ class Groot {
     index.push({ path: filePath, hash: fileHash }); // add file to index
     await fs.writeFile(this.indexPath, JSON.stringify(index));
   }
+
+  async getCurrentHead() {
+    try {
+      return await fs.readFile(this.headPath, { encoding: "utf-8" });
+    } catch (error) {
+      return null;
+    }
+  }
+
+  async commit(message) {
+    const index = JSON.parse(
+      await fs.readFile(this.indexPath, { encoding: "utf-8" })
+    );
+
+    const parentCommit = await this.getCurrentHead();
+
+    const commitData = {
+      timeStamp: new Date().toISOString(),
+      message,
+      files: index,
+      parent: parentCommit,
+    };
+
+    const commitHash = this.hashObject(JSON.stringify(commitData));
+    const commitPath = path.join(this.objectsPath, commitHash);
+    await fs.writeFile(commitPath, JSON.stringify(commitData));
+    // now HEAD should point to the new path
+    await fs.writeFile(this.headPath, commitHash);
+    // clear the staging area
+    await fs.writeFile(this.indexPath, JSON.stringify([]));
+
+    console.log(`Commit successfully created: ${commitHash}`);
+  }
+
+  async log() {
+    let currentCommitHash = await this.getCurrentHead();
+
+    while (currentCommitHash) {
+      const commitData = JSON.parse(
+        await fs.readFile(path.join(this.objectsPath, currentCommitHash), {
+          encoding: "utf-8",
+        })
+      );
+
+      console.log(
+        `Commit: ${currentCommitHash}\nDate: ${commitData.timeStamp}\n\n${commitData.message}\n\n`
+      );
+
+      currentCommitHash = commitData.parent;
+    }
+  }
 }
 
-const groot = new Groot();
-groot.add("sample.txt");
+(async () => {
+  const groot = new Groot();
+  await groot.add("sample.txt");
+  await groot.commit("Second commit");
+
+  await groot.log();
+})();
