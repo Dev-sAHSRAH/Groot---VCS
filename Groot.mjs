@@ -1,8 +1,13 @@
+#!/usr/bin/env node
+
 import path from "path";
 import fs from "fs/promises";
 import crypto from "crypto";
 import { diffLines } from "diff";
 import chalk from "chalk";
+import { Command } from "commander";
+
+const program = new Command();
 
 class Groot {
   constructor(repoPath = ".") {
@@ -187,11 +192,28 @@ class Groot {
   }
 }
 
-(async () => {
+program.command("init").action(async () => {
   const groot = new Groot();
-  //   await groot.add("sample.txt");
-  //   await groot.commit("3rd commit");
+});
 
+program.command("add <file>").action(async (file) => {
+  const groot = new Groot();
+  await groot.add(file);
+});
+
+program.command("commit <message>").action(async (message) => {
+  const groot = new Groot();
+  await groot.commit(message);
+});
+
+program.command("log").action(async () => {
+  const groot = new Groot();
   await groot.log();
-  //   await groot.showCommitDiff("c48c1756858cb4aac994a2b7a0c50b7223c4b081");
-})();
+});
+
+program.command("diff <commitHash>").action(async (commitHash) => {
+  const groot = new Groot();
+  await groot.showCommitDiff(commitHash);
+});
+
+program.parse(process.argv);
